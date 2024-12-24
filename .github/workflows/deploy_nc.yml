@@ -16,17 +16,17 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v3
 
-    - name: Copy Docker Compose File to EC2
-      env:
-        EC2_USER: ${{ vars.EC2_USER }}
-        EC2_HOST: ${{ vars.EC2_HOST }}
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+    - name: Configure SSH key
       run: |
-        echo "${SSH_PRIVATE_KEY}" > ec2_key.pem
-        chmod 600 ec2_key.pem
-        scp -i ec2_key.pem apps/docker-compose.yml $EC2_USER@$EC2_HOST:/home/$EC2_USER/docker-compose.yml
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
 
-    - name: Deploy Nextcloud on EC2
+    - name: Copy Docker Compose files to EC2
+      run: |
+        scp -o StrictHostKeyChecking=no -r apps/ ubuntu@${{ vars.BASTION_HOST }}:~/
+
+    - name: SSH into Bastion Host and Deploy to Private EC2
       env:
         EC2_USER: ${{ vars.EC2_USER }}
         EC2_HOST: ${{ vars.EC2_HOST }}
@@ -37,14 +37,25 @@ jobs:
         NEXTCLOUD_ADMIN_USER: ${{ vars.NEXTCLOUD_ADMIN_USER }}
         NEXTCLOUD_ADMIN_PASSWORD: ${{ secrets.NEXTCLOUD_ADMIN_PASSWORD }}
         EC2_PUBLIC_IP: ${{ vars.EC2_PUBLIC_IP }}
-      run: |
-        ssh -i ec2_key.pem $EC2_USER@$EC2_HOST << EOF
-          export POSTGRES_USER=${POSTGRES_USER}
-          export POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-          export REDIS_PASSWORD=${REDIS_PASSWORD}
-          export NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USER}
-          export NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD}
-          export EC2_PUBLIC_IP=${EC2_PUBLIC_IP}
-          docker-compose -f /home/$EC2_USER/docker-compose.yml pull
-          docker-compose -f /home/$EC2_USER/docker-compose.yml up -d
-        EOF
+      uses: appleboy/ssh-action@v0.1.6
+      with:
+        host: ${{ vars.BASTION_HOST }}
+        username: ${{ vars.BASTION_USER }} 
+        key: ${{ secrets.BASTION_PRIVATE_KEY }}
+        port: 22
+        script: |
+          scp -o StrictHostKeyChecking=no -i .ssh/wp_server_keypair_private_key.pem -r ~/wordpress vars.EC2_USER@${{ vars.EC2_HOST }}:~/
+          # SSH to the private EC2 instance from the bastion host
+          ssh -o StrictHostKeyChecking=no -T -i .ssh/wp_server_keypair_private_key.pem vars.EC2_USER@${{ vars.EC2_HOST }} << 'EOF'
+            # Deploy Docker Compose files directly from the repo
+            ls
+            cd ~/apps
+            echo POSTGRES_USER=${POSTGRES_USER} >> .env
+            echo POSTGRES_PASSWORD=${POSTGRES_PASSWORD} >> .env
+            echo REDIS_PASSWORD=${REDIS_PASSWORD} >> .env
+            echo NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USER} >> .env
+            echo NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD} >> .env
+            echo EC2_PUBLIC_IP=${EC2_PUBLIC_IP} >> .env
+            docker compose up -d
+            docker ps
+          EOF
