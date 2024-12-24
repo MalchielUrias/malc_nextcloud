@@ -1,0 +1,50 @@
+name: Deploy Nextcloud to EC2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "terraform/**"
+
+jobs:
+  deploy:
+    name: Deploy Nextcloud
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Copy Docker Compose File to EC2
+      env:
+        EC2_USER: ${{ vars.EC2_USER }}
+        EC2_HOST: ${{ vars.EC2_HOST }}
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      run: |
+        echo "${SSH_PRIVATE_KEY}" > ec2_key.pem
+        chmod 600 ec2_key.pem
+        scp -i ec2_key.pem docker-compose.yml $EC2_USER@$EC2_HOST:/home/$EC2_USER/docker-compose.yml
+
+    - name: Deploy Nextcloud on EC2
+      env:
+        EC2_USER: ${{ vars.EC2_USER }}
+        EC2_HOST: ${{ vars.EC2_HOST }}
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        POSTGRES_USER: ${{ vars.POSTGRES_USER }}
+        POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+        NEXTCLOUD_ADMIN_USER: ${{ vars.NEXTCLOUD_ADMIN_USER }}
+        NEXTCLOUD_ADMIN_PASSWORD: ${{ secrets.NEXTCLOUD_ADMIN_PASSWORD }}
+        EC2_PUBLIC_IP: ${{ vars.EC2_PUBLIC_IP }}
+      run: |
+        ssh -i ec2_key.pem $EC2_USER@$EC2_HOST << EOF
+          export POSTGRES_USER=${POSTGRES_USER}
+          export POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          export REDIS_PASSWORD=${REDIS_PASSWORD}
+          export NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USER}
+          export NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD}
+          export EC2_PUBLIC_IP=${EC2_PUBLIC_IP}
+          docker-compose -f /home/$EC2_USER/docker-compose.yml pull
+          docker-compose -f /home/$EC2_USER/docker-compose.yml up -d
+        EOF
