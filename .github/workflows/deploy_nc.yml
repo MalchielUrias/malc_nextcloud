@@ -40,8 +40,8 @@ jobs:
       uses: appleboy/ssh-action@v0.1.6
       with:
         host: ${{ vars.BASTION_HOST }}
-        username: ${{ vars.BASTION_USER }} 
-        key: ${{ secrets.BASTION_PRIVATE_KEY }}
+        username: ${{ vars.EC2_USER }} 
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: 22
         script: |
           scp -o StrictHostKeyChecking=no -i .ssh/wp_server_keypair_private_key.pem -r ~/wordpress vars.EC2_USER@${{ vars.EC2_HOST }}:~/
