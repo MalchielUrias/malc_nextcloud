@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: nextcloud-db
+    restart: always
+    environment:
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - nextcloud-db:/var/lib/postgresql/data
+
+  cache:
+    image: redis:7.4.1
+    command: ["redis-server", "--requirepass", "$REDIS_PASSWORD"]
+    volumes:
+      - redis-data:/data
+
+  app:
+    image: nextcloud:latest
+    container_name: nextcloud-app
+    restart: always
+    ports:
+      - "80:80"
+    environment:
+      NEXTCLOUD_TRUSTED_DOMAINS: ${EC2_PUBLIC_IP}
+      POSTGRES_HOST: db
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: cache
+      REDIS_HOST_PASSWORD: ${REDIS_PASSWORD}
+      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD}
+    depends_on:
+      - db
+      - cache
+    volumes:
+      - nextcloud-data:/var/www/html
+
+volumes:
+  nextcloud-db:
+  nextcloud-data:
+  redis-data:
