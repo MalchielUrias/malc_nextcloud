@@ -14,7 +14,7 @@ module "nc_server" {
   user_data = file("${path.module}/user_data.sh")
 }
 
-# ================= SECURITY GROUPS =================
+# ================= NETWORK SECURITY GROUPS =================
 
 module "nc_server_sg" {
   source      = "github.com/MalchielUrias/kubecounty_infrastructure//terraform/aws/modules/sg"
