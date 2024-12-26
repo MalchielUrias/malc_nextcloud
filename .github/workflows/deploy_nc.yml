@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - "terraform/**"
+      - ".github/workflows/deploy_nc.yml"
+      - "apps/docker-compose.yml"
 
 jobs:
   deploy:
@@ -30,7 +32,7 @@ jobs:
       run: |
         ls ~/ 
 
-    - name: SSH into Bastion Host and Deploy to Private EC2
+    - name: SSH into Bastion Host and Deploy to NextCloud Host
       env:
         EC2_USER: ${{ vars.EC2_USER }}
         EC2_HOST: ${{ vars.EC2_HOST }}
